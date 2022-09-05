@@ -25,10 +25,12 @@ public class ShipmentProcess
     {
         Draft,
         Initialized,
-        InvoiceCreated,
+        CustomsInvoiceCreated,
         Manifested,
+        ShippingDocsCreated,
         LabelsCreated,
         QrCodeCreated,
+        CustomerDocs,
         ReceiptCreated,
         DocumentPackCreated,
         CombinedDocumentCreated,
@@ -49,50 +51,58 @@ public class ShipmentProcess
         _id = shipmentId;
         _process = new StateMachine<State, Trigger>(() => _state, s => _state = s);
         
-        ConfigureProcess();
+        Configure();
     }
 
-    private void ConfigureProcess()
+    private void Configure()
     {
+        // init
         _process.Configure(State.Draft)
             .Permit(Trigger.ProcessingRequested, State.Initialized);
 
         _process.Configure(State.Initialized)
-            .Permit(Trigger.InvoiceGenerationRequested, State.InvoiceCreated);
+            .Permit(Trigger.InvoiceGenerationRequested, State.CustomsInvoiceCreated);
 
-        _process.Configure(State.InvoiceCreated)
+        // customs
+        _process.Configure(State.CustomsInvoiceCreated)
             .Permit(Trigger.ManifestationRequested, State.Manifested);
-        // .PermitReentry(Trigger.ManifestationRequested);
+        // .PermitReentry(Trigger.ManifestationRequested); //todo
 
+        // manifestation
         _process.Configure(State.Manifested)
             .Permit(Trigger.CollectionScheduleRequested, State.CollectionScheduled);
 
+        // collection
         _process.Configure(State.CollectionScheduled)
             .Permit(Trigger.LabelGenerationRequested, State.LabelsCreated)
             .Permit(Trigger.QrCodeGenerationRequested, State.QrCodeCreated);
-
+        
+        // labels and qr are sub-state of shipping docs
         _process.Configure(State.LabelsCreated)
+            .SubstateOf(State.ShippingDocsCreated)
             .Permit(Trigger.ReceiptGenerationRequested, State.ReceiptCreated);
-
+        
         _process.Configure(State.QrCodeCreated)
+            .SubstateOf(State.ShippingDocsCreated)
             .Permit(Trigger.ReceiptGenerationRequested, State.ReceiptCreated);
 
+        //receipt and document pack are sub-state of customer docs
         _process.Configure(State.ReceiptCreated)
+            .SubstateOf(State.CustomerDocs)
             .Permit(Trigger.DocumentsPackRequested, State.DocumentPackCreated);
-
+        
         _process.Configure(State.DocumentPackCreated)
+            .SubstateOf(State.CustomerDocs)
             .Permit(Trigger.CombinedDocumentRequested, State.CombinedDocumentCreated);
-        // .Permit(Trigger.CombinedDocumentRequested, State.CombinedDocumentFailed);
-
+        
         _process.Configure(State.CombinedDocumentCreated)
+            .SubstateOf(State.CustomerDocs)
             .Permit(Trigger.CollectionBookingRequested, State.CollectionBooked);
 
+        // collection
         _process.Configure(State.CollectionBooked)
             .Permit(Trigger.CollectionCancellationRequested, State.CollectionCancelled);
-
-        _process.Configure(State.CollectionBooked)
-            .Permit(Trigger.CollectionCancellationRequested, State.CollectionCancelled);
-
+        
         // cancellation
         _process.Configure(State.Manifested)
             .Permit(Trigger.ShipmentCancellationRequested, State.CancellationCompleted);
