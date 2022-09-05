@@ -135,11 +135,14 @@ public class ShipmentProcess
 
     public void OnProcessShipment(Guid id)
     {
+        // persist to ES etc
         _id = id;
         Console.WriteLine("[ProcessShipment] started ShipmentId: [{0}]", _id.ToString());
         _process.Fire(Trigger.ProcessingRequested);
     }
     
+    // Below "On" methods would normally be an actual event handlers
+    // which at the end would call "Fire" method on the process itself 
     public void OnInvoiceGenerationRequested()
     {
         Console.WriteLine("Observed [InvoiceCreated]");
